@@ -7,7 +7,7 @@ members = [
     "crates/ria-inference",
     "crates/ria-api",
     "crates/ria-gguf",
-    "crates/riallm",
+    "crates/ria-engine",
 ]
 resolver = "2"
 
@@ -17,7 +17,7 @@ edition = "2021"
 rust-version = "1.75"
 authors = ["Dust LLC"]
 license = "MIT"
-repository = "https://github.com/dust-llc/riallm"
+repository = "https://github.com/dust-llc/ria"
 readme = "README.md"
 
 [workspace.dependencies]

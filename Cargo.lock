@@ -1307,6 +1307,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ria-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ria-api",
+ "ria-core",
+ "ria-gguf",
+ "ria-inference",
+ "ria-model",
+ "ria-tokenizer",
+ "ria-tools",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ria-gguf"
 version = "0.1.0"
 dependencies = [
@@ -1368,24 +1386,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "riallm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "ria-api",
- "ria-core",
- "ria-gguf",
- "ria-inference",
- "ria-model",
- "ria-tokenizer",
- "ria-tools",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
