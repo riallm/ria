@@ -1,0 +1,18 @@
+[package]
+name = "ria-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "Tool Integration Protocol (TIP) implementation for the RIA LLM model"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+ria-model = { path = "../ria-model" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }

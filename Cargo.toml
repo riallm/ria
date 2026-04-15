@@ -1,0 +1,67 @@
+[workspace]
+members = [
+    "crates/ria-core",
+    "crates/ria-model",
+    "crates/ria-tokenizer",
+    "crates/ria-tools",
+    "crates/ria-inference",
+    "crates/ria-api",
+    "crates/ria-gguf",
+    "crates/riallm",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Dust LLC"]
+license = "MIT"
+repository = "https://github.com/dust-llc/riallm"
+readme = "README.md"
+
+[workspace.dependencies]
+# Candle ML framework (upgraded for rand compatibility)
+candle-core = { version = "0.8" }
+candle-nn = { version = "0.8" }
+candle-transformers = { version = "0.8" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# HTTP server (for API crate)
+axum = "0.7"
+tokio = { version = "1.35", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+
+# Tokenizer
+tokenizers = "0.15"
+
+# Memory mapping
+memmap2 = "0.9"
+
+# Byte order (for GGUF)
+byteorder = "1.5"
+
+# Half precision floats
+half = { version = "2.4", features = ["num-traits"] }
+
+# Random
+rand = "0.8"
+
+# Testing
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

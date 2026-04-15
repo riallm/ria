@@ -1,0 +1,22 @@
+[package]
+name = "ria-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "OpenAI-compatible REST API for the RIA LLM model"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+ria-inference = { path = "../ria-inference" }
+ria-tools = { path = "../ria-tools" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+thiserror = { workspace = true }

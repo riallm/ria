@@ -1,0 +1,15 @@
+[package]
+name = "ria-tokenizer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "Hybrid BPE + custom token tokenizer for the RIA LLM model"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,19 @@
+[package]
+name = "ria-gguf"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "GGUF format loader and metadata for the RIA LLM model"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+byteorder = { workspace = true }
+half = { workspace = true }
+memmap2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,16 @@
+[package]
+name = "ria-model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "Transformer model architecture for the RIA LLM model"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+candle-core = { workspace = true }
+candle-nn = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }

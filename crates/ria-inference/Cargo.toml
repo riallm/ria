@@ -1,0 +1,21 @@
+[package]
+name = "ria-inference"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "Inference engine for the RIA LLM model"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+ria-model = { path = "../ria-model" }
+ria-tokenizer = { path = "../ria-tokenizer" }
+candle-core = { workspace = true }
+candle-nn = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }

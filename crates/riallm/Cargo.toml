@@ -1,0 +1,27 @@
+[package]
+name = "riallm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+description = "RIA LLM inference engine - CLI entry point"
+
+[[bin]]
+name = "riallm"
+path = "src/main.rs"
+
+[dependencies]
+ria-core = { path = "../ria-core" }
+ria-model = { path = "../ria-model" }
+ria-tokenizer = { path = "../ria-tokenizer" }
+ria-tools = { path = "../ria-tools" }
+ria-inference = { path = "../ria-inference" }
+ria-api = { path = "../ria-api" }
+ria-gguf = { path = "../ria-gguf" }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
