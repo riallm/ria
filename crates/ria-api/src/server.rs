@@ -4,8 +4,8 @@ use axum::Router;
 use ria_core::RiaResult;
 use tokio::net::TcpListener;
 
-use crate::routes;
 use crate::handlers::AppState;
+use crate::routes;
 
 /// API server configuration
 pub struct ApiServer {

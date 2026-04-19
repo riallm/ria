@@ -55,9 +55,7 @@ impl ToolExecutor {
         Ok(ToolResult {
             success: output.status.success(),
             output: String::from_utf8_lossy(&output.stdout).to_string(),
-            error: String::from_utf8_lossy(&output.stderr)
-                .to_string()
-                .into(),
+            error: String::from_utf8_lossy(&output.stderr).to_string().into(),
             exit_code: output.status.code(),
         })
     }

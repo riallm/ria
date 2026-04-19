@@ -7,11 +7,11 @@
 //! - Human approval workflows
 
 pub mod categories;
-pub mod protocol;
 pub mod executor;
+pub mod protocol;
 pub mod safety;
 
 pub use categories::ToolCategory;
-pub use protocol::{ToolCall, ToolResult, ToolProtocol};
 pub use executor::ToolExecutor;
+pub use protocol::{ToolCall, ToolProtocol, ToolResult};
 pub use safety::SafetyPolicy;

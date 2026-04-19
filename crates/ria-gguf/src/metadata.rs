@@ -1,7 +1,7 @@
 //! GGUF metadata extraction
 
-use std::collections::HashMap;
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::collections::HashMap;
 
 /// GGUF metadata key-value store
 #[derive(Debug, Clone)]

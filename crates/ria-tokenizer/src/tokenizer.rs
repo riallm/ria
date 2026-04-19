@@ -18,14 +18,12 @@ impl RiaTokenizer {
         let special_tokens = SpecialTokenRegistry::new();
 
         // Initialize BPE with special token offset
-        bpe.vocab.extend(
-            (0..special_tokens.len())
-                .map(|id| crate::bpe::BPEEntry {
-                    token: format!("<special_{}>", id),
-                    id,
-                    is_special: true,
-                })
-        );
+        bpe.vocab
+            .extend((0..special_tokens.len()).map(|id| crate::bpe::BPEEntry {
+                token: format!("<special_{}>", id),
+                id,
+                is_special: true,
+            }));
 
         Self {
             bpe,

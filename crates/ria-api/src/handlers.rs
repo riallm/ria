@@ -1,18 +1,12 @@
 //! API route handlers
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use ria_core::RiaResult;
 use ria_inference::generator::GenerationOutput;
 
 use crate::models::{
-    AgentExecuteRequest, AgentExecuteResponse, ChatCompletionRequest,
-    ChatCompletionResponse, CodeCompletionRequest, CodeCompletionResponse,
-    DebugRequest, DebugResponse, Message,
+    AgentExecuteRequest, AgentExecuteResponse, ChatCompletionRequest, ChatCompletionResponse,
+    CodeCompletionRequest, CodeCompletionResponse, DebugRequest, DebugResponse, Message,
 };
 
 /// Shared application state

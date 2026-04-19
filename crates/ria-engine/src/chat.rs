@@ -1,7 +1,7 @@
 //! Chat mode implementation
 
-use std::io::Write;
 use anyhow::Result;
+use std::io::Write;
 
 use crate::Cli;
 
@@ -12,7 +12,10 @@ pub async fn run(cli: &Cli, system: Option<String>) -> Result<()> {
             .to_string()
     });
 
-    println!("RIA Chat Mode (Model: {})", cli.model.as_deref().unwrap_or("none"));
+    println!(
+        "RIA Chat Mode (Model: {})",
+        cli.model.as_deref().unwrap_or("none")
+    );
     println!("Type 'quit' or 'exit' to leave.\n");
 
     // Chat loop

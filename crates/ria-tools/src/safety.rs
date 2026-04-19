@@ -40,8 +40,15 @@ impl SafetyPolicy {
     pub fn requires_approval(&self, command: &str) -> bool {
         // Check for dangerous operations
         let dangerous_patterns = [
-            "rm -rf", "sudo", "chmod 777", "curl |", "wget |", "mkfs",
-            "dd if=", "> /dev/", "> /etc/",
+            "rm -rf",
+            "sudo",
+            "chmod 777",
+            "curl |",
+            "wget |",
+            "mkfs",
+            "dd if=",
+            "> /dev/",
+            "> /etc/",
         ];
 
         dangerous_patterns

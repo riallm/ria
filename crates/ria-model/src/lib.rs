@@ -16,8 +16,8 @@ pub mod norm;
 pub mod position;
 pub mod tir;
 
-pub use model::RiaModel;
-pub use layer::TransformerLayer;
 pub use attention::MultiHopCodeAttention;
 pub use ffn::DualPathFFN;
+pub use layer::TransformerLayer;
+pub use model::RiaModel;
 pub use tir::ToolIntegrationRouter;

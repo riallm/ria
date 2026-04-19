@@ -11,6 +11,6 @@ pub mod generator;
 pub mod kv_cache;
 pub mod sampler;
 
+pub use cache::KvCacheManager;
 pub use generator::TextGenerator;
 pub use sampler::{Sampler, SamplingStrategy};
-pub use cache::KvCacheManager;

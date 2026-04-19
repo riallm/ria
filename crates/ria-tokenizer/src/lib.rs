@@ -12,5 +12,5 @@ pub mod bpe;
 pub mod special_tokens;
 pub mod tokenizer;
 
-pub use tokenizer::RiaTokenizer;
 pub use special_tokens::SpecialTokenRegistry;
+pub use tokenizer::RiaTokenizer;

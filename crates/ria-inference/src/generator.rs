@@ -44,11 +44,7 @@ pub struct TextGenerator {
 }
 
 impl TextGenerator {
-    pub fn new(
-        model: RiaModel,
-        tokenizer: RiaTokenizer,
-        config: GenerationConfig,
-    ) -> Self {
+    pub fn new(model: RiaModel, tokenizer: RiaTokenizer, config: GenerationConfig) -> Self {
         let sampler = Sampler::new(&config);
         Self {
             model,
@@ -61,11 +57,17 @@ impl TextGenerator {
     /// Generate text from a prompt
     pub fn generate(&self, prompt: &str) -> RiaResult<GenerationOutput> {
         // Encode prompt
-        let prompt_tokens: Vec<u32> = self.tokenizer.encode(prompt)?.iter().map(|&x| x as u32).collect();
+        let prompt_tokens: Vec<u32> = self
+            .tokenizer
+            .encode(prompt)?
+            .iter()
+            .map(|&x| x as u32)
+            .collect();
         let prompt_len = prompt_tokens.len();
 
         // Build input tensor
-        let _input = Tensor::new(prompt_tokens.as_slice(), &candle_core::Device::Cpu).map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
+        let _input = Tensor::new(prompt_tokens.as_slice(), &candle_core::Device::Cpu)
+            .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
 
         // Generation loop
         let mut generated = Vec::new();
@@ -73,8 +75,8 @@ impl TextGenerator {
 
         for _ in 0..self.config.max_new_tokens {
             // Forward pass
-            let _input_tensor =
-                Tensor::new(current_tokens.as_slice(), &candle_core::Device::Cpu).map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
+            let _input_tensor = Tensor::new(current_tokens.as_slice(), &candle_core::Device::Cpu)
+                .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
 
             // In a full implementation, we'd run the model forward pass here
             // and sample from the logits
