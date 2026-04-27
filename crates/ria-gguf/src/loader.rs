@@ -9,8 +9,8 @@ use std::path::Path;
 use crate::metadata::{GgufMetadata, MetadataValue};
 use crate::tensor::TensorInfo;
 
-/// GGUF magic number: "GGUF" = 0x47475547
-const GGUF_MAGIC: u32 = 0x47475547;
+/// GGUF magic number: "GGUF" = 0x46554747
+const GGUF_MAGIC: u32 = 0x46554747;
 
 /// GGUF file loader
 pub struct GgufLoader {
