@@ -64,7 +64,11 @@ impl Sampler {
         match self.strategy {
             SamplingStrategy::Greedy => {
                 let token = probs.argmax(candle_core::D::Minus1)?;
-                Ok(token.get(0)?.to_scalar::<u32>()?)
+                if token.rank() == 0 {
+                    Ok(token.to_scalar::<u32>()?)
+                } else {
+                    Ok(token.get(0)?.to_scalar::<u32>()?)
+                }
             }
             SamplingStrategy::Multinomial
             | SamplingStrategy::TopK

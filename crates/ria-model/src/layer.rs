@@ -1,7 +1,7 @@
 //! Transformer layer combining all components
 //!
 //! Per SPEC-003 Section 2.1:
-//! ```
+//! ```text
 //! TransformerLayers (N×)
 //! ├── RMSNorm (pre-norm)
 //! ├── Multi-Hop Code Attention (MHCA)
@@ -41,14 +41,15 @@ impl TransformerLayer {
     /// Create transformer layer with GGUF naming per SPEC-003 Section 8.2
     /// Note: Attention and FFN each have their own RMSNorm (pre-norm pattern)
     pub fn new(vs: candle_nn::VarBuilder, config: &ModelConfig) -> Result<Self> {
-        let hidden_dim = config.tier.hidden_dim();
+        let hidden_dim = config.hidden_dim();
+        let epsilon = config.rms_norm_epsilon();
 
         // Attention RMSNorm per SPEC-003: "RMSNorm (pre-norm)"
-        let attention_norm = RMSNorm::new(hidden_dim, 1e-5, vs.pp("attn_norm"))?;
+        let attention_norm = RMSNorm::new(hidden_dim, epsilon, vs.pp("attn_norm"))?;
         let attention = MultiHopCodeAttention::new(vs.pp("attn"), config)?;
 
         // FFN RMSNorm per SPEC-003: pre-norm before FFN
-        let ffn_norm = RMSNorm::new(hidden_dim, 1e-5, vs.pp("ffn_norm"))?;
+        let ffn_norm = RMSNorm::new(hidden_dim, epsilon, vs.pp("ffn_norm"))?;
         let ffn = DualPathFFN::new(vs.pp("ffn"), config)?;
 
         // TIR per SPEC-003 Section 4: Tool Integration Router
@@ -68,7 +69,7 @@ impl TransformerLayer {
 
     /// Forward pass with pre-norm architecture
     /// Per SPEC-003 Section 2.2:
-    /// ```
+    /// ```text
     /// a = RMSNorm(h_{l-1})
     /// m = MHCA(a)
     /// h' = h_{l-1} + m

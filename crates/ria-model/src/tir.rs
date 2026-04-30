@@ -17,7 +17,6 @@
 use candle_core::{Result, Tensor};
 use candle_nn::Module;
 use ria_core::config::ModelConfig;
-use tracing::{debug, trace};
 
 /// Tool categories supported by RIA
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,7 +48,7 @@ pub struct ToolIntegrationRouter {
 
 impl ToolIntegrationRouter {
     pub fn new(vs: candle_nn::VarBuilder, config: &ModelConfig) -> Result<Self> {
-        let hidden_dim = config.tier.hidden_dim();
+        let hidden_dim = config.hidden_dim();
         let num_tools = 400; // Tool token range: 100,000-100,399
 
         let tool_gate = candle_nn::linear(hidden_dim, 1, vs.pp("gate"))?;

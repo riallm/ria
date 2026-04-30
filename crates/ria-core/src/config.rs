@@ -123,6 +123,67 @@ impl ModelTier {
     }
 }
 
+/// High-level model body selection.
+///
+/// `Transformer` preserves the layer-by-layer RIA architecture described in
+/// SPEC-003. `RecurrentDepth` keeps RIA's attention/FFN/TIR block design but
+/// organizes the body as Prelude -> shared recurrent core -> Coda.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelArchitecture {
+    Transformer,
+    RecurrentDepth,
+}
+
+impl Default for ModelArchitecture {
+    fn default() -> Self {
+        Self::Transformer
+    }
+}
+
+/// Runtime and training configuration for the recurrent-depth RIA body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecurrentDepthConfig {
+    /// Number of distinct transformer blocks before the recurrent core.
+    pub prelude_layers: usize,
+    /// Number of times to apply the shared recurrent block by default.
+    pub recurrent_iterations: usize,
+    /// Lower bound for runtime iteration overrides.
+    pub min_recurrent_iterations: usize,
+    /// Upper bound for runtime iteration overrides.
+    pub max_recurrent_iterations: usize,
+    /// Number of distinct transformer blocks after the recurrent core.
+    pub coda_layers: usize,
+    /// Residual delta scale used inside the shared recurrent block.
+    pub residual_scale: f64,
+}
+
+impl Default for RecurrentDepthConfig {
+    fn default() -> Self {
+        Self {
+            prelude_layers: 2,
+            recurrent_iterations: 8,
+            min_recurrent_iterations: 1,
+            max_recurrent_iterations: 64,
+            coda_layers: 2,
+            residual_scale: 1.0,
+        }
+    }
+}
+
+impl RecurrentDepthConfig {
+    /// Clamp an inference-time loop override to the configured stable range.
+    pub fn clamp_iterations(&self, requested: Option<usize>) -> usize {
+        let requested = requested.unwrap_or(self.recurrent_iterations);
+        requested.clamp(self.min_recurrent_iterations, self.max_recurrent_iterations)
+    }
+
+    /// Number of distinct parameterized blocks in the recurrent-depth body.
+    pub fn parameterized_block_count(&self) -> usize {
+        self.prelude_layers + 1 + self.coda_layers
+    }
+}
+
 /// Complete model configuration derived from GGUF metadata per SPEC-003 Section 8.1
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelConfig {
@@ -136,6 +197,10 @@ pub struct ModelConfig {
     pub layer_norm_rms_epsilon: f32,
     pub rope_freq_base: f32,
     pub vocab_size: usize,
+    #[serde(default)]
+    pub architecture: ModelArchitecture,
+    #[serde(default)]
+    pub recurrent: RecurrentDepthConfig,
 }
 
 impl ModelConfig {
@@ -158,7 +223,43 @@ impl ModelConfig {
             layer_norm_rms_epsilon: 1e-5,
             rope_freq_base: 10_000.0,
             vocab_size: tier.vocab_size(),
+            architecture: ModelArchitecture::Transformer,
+            recurrent: RecurrentDepthConfig::default(),
         }
+    }
+
+    /// Create a custom config. This is primarily useful for tests and small
+    /// local experiments where a full RIA tier would be too large to allocate.
+    pub fn custom(
+        context_length: usize,
+        embedding_length: usize,
+        block_count: usize,
+        feed_forward_length: usize,
+        attention_head_count: usize,
+        attention_head_count_kv: usize,
+        vocab_size: usize,
+    ) -> Self {
+        Self {
+            tier: ModelTier::Ria1B,
+            context_length,
+            embedding_length,
+            block_count,
+            feed_forward_length,
+            attention_head_count,
+            attention_head_count_kv,
+            layer_norm_rms_epsilon: 1e-5,
+            rope_freq_base: 10_000.0,
+            vocab_size,
+            architecture: ModelArchitecture::Transformer,
+            recurrent: RecurrentDepthConfig::default(),
+        }
+    }
+
+    /// Return a copy configured for the recurrent-depth architecture.
+    pub fn with_recurrent_depth(mut self, recurrent: RecurrentDepthConfig) -> Self {
+        self.architecture = ModelArchitecture::RecurrentDepth;
+        self.recurrent = recurrent;
+        self
     }
 
     /// Get the hidden dimension (embedding_length)
@@ -174,5 +275,66 @@ impl ModelConfig {
     /// Get vocabulary size
     pub fn vocab_size(&self) -> usize {
         self.vocab_size
+    }
+
+    /// Get attention head dimension.
+    pub fn head_dim(&self) -> usize {
+        self.embedding_length / self.attention_head_count
+    }
+
+    /// Get RMSNorm epsilon.
+    pub fn rms_norm_epsilon(&self) -> f64 {
+        self.layer_norm_rms_epsilon as f64
+    }
+
+    /// Validate shape-level invariants required by attention and staged bodies.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.context_length == 0 {
+            return Err("context_length must be greater than zero".to_string());
+        }
+        if self.embedding_length == 0 {
+            return Err("embedding_length must be greater than zero".to_string());
+        }
+        if self.vocab_size == 0 {
+            return Err("vocab_size must be greater than zero".to_string());
+        }
+        if self.block_count == 0 {
+            return Err("block_count must be greater than zero".to_string());
+        }
+        if self.attention_head_count == 0 {
+            return Err("attention_head_count must be greater than zero".to_string());
+        }
+        if self.attention_head_count_kv == 0 {
+            return Err("attention_head_count_kv must be greater than zero".to_string());
+        }
+        if self.embedding_length % self.attention_head_count != 0 {
+            return Err("embedding_length must be divisible by attention_head_count".to_string());
+        }
+        if self.attention_head_count % self.attention_head_count_kv != 0 {
+            return Err(
+                "attention_head_count must be divisible by attention_head_count_kv".to_string(),
+            );
+        }
+        if matches!(self.architecture, ModelArchitecture::RecurrentDepth) {
+            let recurrent = &self.recurrent;
+            if recurrent.parameterized_block_count() > self.block_count {
+                return Err(
+                    "recurrent prelude + shared block + coda exceeds block_count".to_string(),
+                );
+            }
+            if recurrent.min_recurrent_iterations == 0 {
+                return Err("min_recurrent_iterations must be greater than zero".to_string());
+            }
+            if recurrent.min_recurrent_iterations > recurrent.max_recurrent_iterations {
+                return Err(
+                    "min_recurrent_iterations must be <= max_recurrent_iterations".to_string(),
+                );
+            }
+            if recurrent.residual_scale <= 0.0 {
+                return Err("residual_scale must be positive".to_string());
+            }
+        }
+
+        Ok(())
     }
 }

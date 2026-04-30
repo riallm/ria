@@ -11,10 +11,12 @@
 //! - blk.{i}.attn_v.weight: Value projection (GQA)
 //! - blk.{i}.attn_output.weight: Output projection
 
-use candle_core::{Result, Tensor};
+use candle_core::{Result, Tensor, D};
 use candle_nn::Module;
 use ria_core::config::ModelConfig;
 use tracing::trace;
+
+use crate::position::RoPE;
 
 /// File relationship types for attention bias
 #[derive(Debug, Clone, Copy)]
@@ -34,22 +36,28 @@ pub struct MultiHopCodeAttention {
     pub config: ModelConfig,
     pub head_dim: usize,
     pub file_attention_bias: Option<Tensor>,
+    pub rope: RoPE,
 }
 
 impl MultiHopCodeAttention {
     /// Create new MultiHopCodeAttention layer following GGUF naming conventions
     /// per SPEC-003 Section 8.2: blk.{i}.attn_q, blk.{i}.attn_k, blk.{i}.attn_v, blk.{i}.attn_output
     pub fn new(vs: candle_nn::VarBuilder, config: &ModelConfig) -> Result<Self> {
-        let head_dim = config.tier.head_dim();
-        let hidden_dim = config.tier.hidden_dim();
-        let num_heads = config.tier.num_heads();
-        let num_kv_heads = config.tier.num_kv_heads();
+        let head_dim = config.head_dim();
+        let hidden_dim = config.hidden_dim();
+        let num_heads = config.attention_head_count;
+        let num_kv_heads = config.attention_head_count_kv;
 
         // Following GGUF naming per SPEC-003 Section 8.2
         let query = candle_nn::linear(hidden_dim, num_heads * head_dim, vs.pp("q"))?;
         let key = candle_nn::linear(hidden_dim, num_kv_heads * head_dim, vs.pp("k"))?;
         let value = candle_nn::linear(hidden_dim, num_kv_heads * head_dim, vs.pp("v"))?;
         let output = candle_nn::linear(num_heads * head_dim, hidden_dim, vs.pp("o"))?;
+        let rope = RoPE::new(
+            head_dim,
+            config.rope_freq_base as f64,
+            config.context_length,
+        );
 
         trace!(
             "MultiHopCodeAttention: hidden_dim={}, heads={}, kv_heads={}, head_dim={}",
@@ -67,6 +75,7 @@ impl MultiHopCodeAttention {
             config: config.clone(),
             head_dim,
             file_attention_bias: None,
+            rope,
         })
     }
 
@@ -79,6 +88,10 @@ impl MultiHopCodeAttention {
         let _alpha_import = 0.8;
         let _alpha_module = 0.6;
         let _alpha_repo = 0.3;
+        trace!(
+            "compute_file_bias called for {} file-relation entries",
+            file_relations.len()
+        );
 
         // In a full implementation, this would create a bias matrix based on
         // the file relationships between tokens (SPEC-003 Section 3.4)
@@ -95,19 +108,19 @@ impl MultiHopCodeAttention {
         _cache: Option<(&Tensor, &Tensor)>,
     ) -> Result<Tensor> {
         trace!("MHCA forward: input shape {:?}", x.shape());
+        if x.rank() != 3 {
+            candle_core::bail!("MHCA expects input shape (batch, seq, hidden)");
+        }
 
         let q = self.query.forward(x)?;
         let k = self.key.forward(x)?;
         let v = self.value.forward(x)?;
 
-        // GQA: Each query head shares keys/values with num_heads / num_kv_heads heads
-        // For GQA, need to reshape and repeat KV across Q heads
-
         // Reshape for multi-head attention: (batch, seq, heads, head_dim)
         let batch = x.dims()[0];
         let seq_len = x.dims()[1];
-        let num_heads = self.config.tier.num_heads();
-        let num_kv_heads = self.config.tier.num_kv_heads();
+        let num_heads = self.config.attention_head_count;
+        let num_kv_heads = self.config.attention_head_count_kv;
         let head_dim = self.head_dim;
 
         // Reshape Q to separate heads
@@ -115,12 +128,8 @@ impl MultiHopCodeAttention {
         let k = k.reshape((batch, seq_len, num_kv_heads, head_dim))?;
         let v = v.reshape((batch, seq_len, num_kv_heads, head_dim))?;
 
-        // GQA: For full GQA, we'd repeat KV heads to match Q heads
-        // For now, implement as standard MHA (each head gets its own KV)
-        // In production, use proper GQA with candel's map_fn or manual expansion
-
-        // Standard attention computation with GQA
-        let scale = (head_dim as f64).sqrt().recip();
+        // Standard attention computation with GQA.
+        let scale = (head_dim as f32).sqrt().recip();
         let scale_tensor = Tensor::new(scale, x.device())?;
 
         // Transpose for attention: (batch, heads, seq, head_dim)
@@ -128,19 +137,30 @@ impl MultiHopCodeAttention {
         let k = k.transpose(1, 2)?;
         let v = v.transpose(1, 2)?;
 
+        // Apply RoPE to query and key states before dot-product attention.
+        let q = self.rope.apply(&q, 0)?;
+        let k = self.rope.apply(&k, 0)?;
+
+        // Grouped Query Attention: each KV head is shared by a group of query heads.
+        let kv_group_size = num_heads / num_kv_heads;
+        let k = repeat_kv_heads(&k, kv_group_size)?;
+        let v = repeat_kv_heads(&v, kv_group_size)?;
+
         // Compute attention: Q @ K^T / sqrt(d_k)
-        let k_t = k.transpose(2, 1)?;
+        let k_t = k.transpose(2, 3)?;
         let qk = q.matmul(&k_t)?;
-        let qk_scaled = qk.broadcast_mul(&scale_tensor)?;
+        let mut logits = qk.broadcast_mul(&scale_tensor)?;
 
         // Apply file-aware bias if present (SPEC-003 Section 3.2: M_file + M_hier)
-        let logits = match mask {
-            Some(m) => qk_scaled.add(m)?,
-            None => qk_scaled,
-        };
+        if let Some(file_bias) = &self.file_attention_bias {
+            logits = logits.broadcast_add(file_bias)?;
+        }
+        if let Some(m) = mask {
+            logits = logits.broadcast_add(m)?;
+        }
 
         // Softmax and weighted sum
-        let attn = candle_nn::ops::softmax(&logits, candle_core::D::Minus1)?;
+        let attn = candle_nn::ops::softmax(&logits, D::Minus1)?;
         let out = attn.matmul(&v)?;
 
         // Reshape back: (batch, seq, hidden_dim)
@@ -150,5 +170,44 @@ impl MultiHopCodeAttention {
 
         trace!("MHCA forward: output shape {:?}", out.shape());
         self.output.forward(&out)
+    }
+}
+
+fn repeat_kv_heads(x: &Tensor, group_size: usize) -> Result<Tensor> {
+    if group_size == 1 {
+        return Ok(x.clone());
+    }
+
+    let dims = x.dims();
+    if dims.len() != 4 {
+        candle_core::bail!("repeat_kv_heads expects shape (batch, heads, seq, head_dim)");
+    }
+
+    let batch = dims[0];
+    let kv_heads = dims[1];
+    let seq_len = dims[2];
+    let head_dim = dims[3];
+
+    x.unsqueeze(2)?.repeat((1, 1, group_size, 1, 1))?.reshape((
+        batch,
+        kv_heads * group_size,
+        seq_len,
+        head_dim,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use candle_core::Device;
+
+    #[test]
+    fn repeats_kv_heads_for_gqa() -> Result<()> {
+        let values = (0..8).map(|v| v as f32).collect::<Vec<_>>();
+        let kv = Tensor::from_vec(values, (1, 2, 2, 2), &Device::Cpu)?;
+        let repeated = repeat_kv_heads(&kv, 2)?;
+
+        assert_eq!(repeated.dims(), &[1, 4, 2, 2]);
+        Ok(())
     }
 }

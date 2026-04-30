@@ -1,6 +1,6 @@
 //! Text generator
 
-use candle_core::{Result, Tensor};
+use candle_core::Tensor;
 use ria_core::{generation::GenerationConfig, RiaResult};
 use ria_model::model::RiaModel;
 use ria_tokenizer::RiaTokenizer;
@@ -65,35 +65,78 @@ impl TextGenerator {
             .collect();
         let prompt_len = prompt_tokens.len();
 
-        // Build input tensor
-        let _input = Tensor::new(prompt_tokens.as_slice(), &candle_core::Device::Cpu)
-            .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
-
         // Generation loop
         let mut generated = Vec::new();
         let mut current_tokens = prompt_tokens.clone();
+        let eos_id = self
+            .tokenizer
+            .get_special_token("<|eos|>")
+            .map(|id| id as u32);
+        let mut finish_reason = FinishReason::Length;
 
         for _ in 0..self.config.max_new_tokens {
             // Forward pass
-            let _input_tensor = Tensor::new(current_tokens.as_slice(), &candle_core::Device::Cpu)
+            let input_tensor = Tensor::new(current_tokens.as_slice(), &candle_core::Device::Cpu)
+                .and_then(|t| t.unsqueeze(0))
+                .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
+            let logits = self
+                .model
+                .forward(&input_tensor)
+                .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
+            let seq_len = logits
+                .dim(1)
+                .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
+            let last_logits = logits
+                .narrow(1, seq_len - 1, 1)
+                .and_then(|t| t.squeeze(1))
+                .and_then(|t| t.squeeze(0))
                 .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
 
-            // In a full implementation, we'd run the model forward pass here
-            // and sample from the logits
-            let _logits: Tensor = unimplemented!("Model forward pass");
-
             // Sample next token
-            let _next_token = unimplemented!("Sample from logits");
+            let next_token = self
+                .sampler
+                .sample(&last_logits)
+                .map_err(|e| ria_core::RiaError::Inference(e.to_string()))?;
+            current_tokens.push(next_token);
 
-            // Check for stop sequences and EOS
-            // Append to generated tokens
-            // Update current_tokens with KV cache
+            let text = self
+                .tokenizer
+                .decode(&[next_token as usize])
+                .unwrap_or_else(|_| String::new());
+            generated.push(GeneratedToken {
+                id: next_token,
+                text,
+                logprob: None,
+            });
+
+            if Some(next_token) == eos_id {
+                finish_reason = FinishReason::Eos;
+                break;
+            }
+
+            let generated_ids = generated
+                .iter()
+                .map(|token| token.id as usize)
+                .collect::<Vec<_>>();
+            let generated_text = self
+                .tokenizer
+                .decode(&generated_ids)
+                .unwrap_or_else(|_| generated.iter().map(|token| token.text.as_str()).collect());
+            if self
+                .config
+                .stop_sequences
+                .iter()
+                .any(|stop| generated_text.ends_with(&stop.0))
+            {
+                finish_reason = FinishReason::Stop;
+                break;
+            }
         }
 
         let completion_tokens = generated.len();
         Ok(GenerationOutput {
             tokens: generated,
-            finish_reason: FinishReason::Length,
+            finish_reason,
             prompt_tokens: prompt_len,
             completion_tokens,
         })
@@ -104,8 +147,12 @@ impl TextGenerator {
     where
         F: FnMut(GeneratedToken) -> bool,
     {
-        // Similar to generate() but calls callback for each token
-        // Returns false from callback to stop generation
-        unimplemented!("Streaming generation")
+        let output = self.generate(_prompt)?;
+        for token in output.tokens {
+            if !callback(token) {
+                break;
+            }
+        }
+        Ok(())
     }
 }

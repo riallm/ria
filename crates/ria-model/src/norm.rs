@@ -37,7 +37,7 @@ impl RMSNorm {
         // Compute RMS: sqrt(mean(x²) + ε)
         let variance = x_f64.sqr()?.mean_keepdim(candle_core::D::Minus1)?;
         let epsilon_tensor = Tensor::new(self.epsilon, x.device())?;
-        let inv_std = variance.add(&epsilon_tensor)?.sqrt()?.recip()?;
+        let inv_std = variance.broadcast_add(&epsilon_tensor)?.sqrt()?.recip()?;
 
         // Normalize
         let x_normalized = x_f64.broadcast_mul(&inv_std)?;

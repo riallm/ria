@@ -113,6 +113,8 @@ impl GgufLoader {
             layer_norm_rms_epsilon,
             rope_freq_base,
             vocab_size: vocab_size as usize,
+            architecture: Default::default(),
+            recurrent: Default::default(),
         })
     }
 }
